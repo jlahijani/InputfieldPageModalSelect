@@ -1,0 +1,369 @@
+.InputfieldPageModalSelectSummary {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+}
+
+.InputfieldPageModalSelectCount {
+	color: #666;
+	font-weight: 600;
+}
+
+.InputfieldPageModalSelectSelected {
+	margin: 0.75rem 0 0;
+	padding-left: 1.5rem;
+}
+
+.InputfieldPageModalSelectSelected:empty {
+	display: none;
+}
+
+.InputfieldPageModalSelectSelected li {
+	margin: 0.2rem 0;
+}
+
+.InputfieldPageModalSelectSelected a {
+	text-decoration: none;
+}
+
+.InputfieldPageModalSelectSelected a:hover {
+	text-decoration: underline;
+}
+
+.InputfieldPageModalSelectDialog[hidden] {
+	display: none;
+}
+
+.InputfieldPageModalSelectDialog.ui-dialog-content {
+	box-sizing: border-box;
+	display: flex !important;
+	flex-direction: column;
+	padding: 15px;
+}
+
+.InputfieldPageModalSelectDialogLarge {
+	z-index: 1000001 !important;
+}
+
+.InputfieldPageModalSelectOverlay {
+	z-index: 1000000 !important;
+}
+
+.InputfieldPageModalSelectDialogOpen {
+	background: #fff;
+	border: 1px solid #d9d9d9;
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
+	left: 50%;
+	max-height: calc(100vh - 4rem);
+	max-width: 1100px;
+	overflow: auto;
+	padding: 1rem;
+	position: fixed;
+	top: 2rem;
+	transform: translateX(-50%);
+	width: calc(100vw - 2rem);
+	z-index: 1000001;
+}
+
+.InputfieldPageModalSelectSearchHeader {
+	align-items: baseline;
+	display: flex;
+	gap: 0.5rem;
+}
+
+.InputfieldPageModalSelectSearch {
+	margin: 0 0 1rem;
+}
+
+.InputfieldPageModalSelectVisuallyHidden {
+	border: 0;
+	clip: rect(0 0 0 0);
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	padding: 0;
+	position: absolute;
+	width: 1px;
+}
+
+.InputfieldPageModalSelectSearchHeader label {
+	font-weight: 700;
+}
+
+.InputfieldPageModalSelectTabs {
+	margin-bottom: 0;
+	margin-left: 1px;
+}
+
+.InputfieldPageModalSelectTabPanels {
+	margin-top: 0;
+}
+
+.InputfieldPageModalSelectQuery,
+.InputfieldPageModalSelectSelectedQuery {
+	box-sizing: border-box;
+	width: 100%;
+}
+
+.InputfieldPageModalSelectQuery::-webkit-search-cancel-button,
+.InputfieldPageModalSelectSelectedQuery::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+}
+
+.InputfieldPageModalSelectSearchInputWrap .uk-form-icon {
+	background: transparent;
+	border: 0;
+	color: #8d939e;
+	cursor: pointer;
+	min-height: 0;
+	padding: 0;
+}
+
+.InputfieldPageModalSelectSearchInputWrap .uk-form-icon:hover,
+.InputfieldPageModalSelectSearchInputWrap .uk-form-icon:focus {
+	color: #354b60;
+}
+
+.InputfieldPageModalSelectBody {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+}
+
+.InputfieldPageModalSelectBody h3 {
+	font-size: 1rem;
+	margin: 1rem 0 0.5rem;
+}
+
+.InputfieldPageModalSelectBody h3:first-child {
+	margin-top: 0;
+}
+
+.InputfieldPageModalSelectSelectedHeader {
+	align-items: center;
+	display: flex;
+	gap: 0.5rem;
+	justify-content: flex-start;
+	margin-bottom: 0.5rem;
+}
+
+.InputfieldPageModalSelectSelectedHeaderActions {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	justify-content: flex-start;
+	text-align: left;
+}
+
+.InputfieldPageModalSelectRemoveAll,
+.InputfieldPageModalSelectToggleShown {
+	font-size: 0.875rem;
+	line-height: 1.4;
+}
+
+.InputfieldPageModalSelectSelectedHiddenNote {
+	color: #666;
+	font-size: 0.875rem;
+	margin: -0.25rem 0 0.5rem;
+}
+
+.InputfieldPageModalSelectSelectedHiddenNote:empty {
+	display: none;
+}
+
+.InputfieldPageModalSelectStatus,
+.InputfieldPageModalSelectSelectedStatus {
+	color: #666;
+}
+
+.InputfieldPageModalSelectBottomStatus,
+.InputfieldPageModalSelectSelectedBottomStatus {
+	color: #666;
+}
+
+.InputfieldPageModalSelectToggleShown[aria-disabled='true'],
+.InputfieldPageModalSelectToggleShown[aria-disabled='true']:hover,
+.InputfieldPageModalSelectToggleShown[aria-disabled='true']:focus {
+	color: #999 !important;
+	cursor: default;
+	opacity: 0.45;
+	pointer-events: none;
+	text-decoration: none;
+}
+
+/*
+.InputfieldPageModalSelectModalSelectedWrap,
+.InputfieldPageModalSelectResultsWrap {
+	max-height: max(14rem, calc(100vh - 23rem));
+	overflow: auto;
+}
+*/
+
+.InputfieldPageModalSelectResultsWrap {
+	display: none;
+}
+
+.InputfieldPageModalSelectModalSelected,
+.InputfieldPageModalSelectResults {
+	margin: 0;
+}
+
+.InputfieldPageModalSelectResults label {
+	align-items: flex-start;
+	cursor: pointer;
+	display: flex;
+	gap: 0.5rem;
+	line-height: 1.35;
+}
+
+.InputfieldPageModalSelectSortCell,
+.InputfieldPageModalSelectIndexCell,
+.InputfieldPageModalSelectSelectCell,
+.InputfieldPageModalSelectRemoveCell {
+	white-space: nowrap;
+	width: 1%;
+}
+
+.InputfieldPageModalSelectIndexCell {
+	color: #666;
+	font-variant-numeric: tabular-nums;
+}
+
+.InputfieldPageModalSelectIndexInput {
+	box-sizing: border-box;
+	font-variant-numeric: tabular-nums;
+	min-width: 4.5rem;
+	width: 4.5rem;
+}
+
+.InputfieldPageModalSelectTitleCell {
+	overflow-wrap: anywhere;
+}
+
+.InputfieldPageModalSelectColumnCell {
+	vertical-align: middle;
+}
+
+.InputfieldPageModalSelectLoadingCell {
+	color: #666;
+	padding: 1rem !important;
+	text-align: center;
+}
+
+.InputfieldPageModalSelectImageCell img {
+	display: block;
+	height: auto;
+	/*max-height: 100px;*/
+	max-width: 100px;
+	width: auto;
+}
+
+.InputfieldPageModalSelectPathText {
+	color: #666;
+	font-size: 0.8125rem;
+	line-height: 1.35;
+	margin-top: 0.15rem;
+	overflow-wrap: anywhere;
+}
+
+.InputfieldPageModalSelectSortHandle {
+	color: #777;
+	cursor: move;
+	display: inline-block;
+	line-height: 1.35;
+	margin: 0.2rem 0.45rem 0 0;
+}
+
+.InputfieldPageModalSelectSortDisabled .InputfieldPageModalSelectSortHandle {
+	cursor: default;
+	opacity: 0.35;
+}
+
+.InputfieldPageModalSelectResults input {
+	margin-top: 0.2rem;
+}
+
+.InputfieldPageModalSelectRemoveSelected {
+	color: #a94442;
+	display: inline-block;
+	line-height: 1.35;
+	text-align: center;
+	width: 1.75rem;
+}
+
+.InputfieldPageModalSelectRemoveSelected:hover,
+.InputfieldPageModalSelectRemoveSelected:focus {
+	color: #7f2f2d;
+}
+
+.InputfieldPageModalSelectSelectedBlock {
+	border-bottom: 1px solid #d8d8d8;
+	margin-bottom: 1rem;
+	padding-bottom: 1rem;
+}
+
+.InputfieldPageModalSelectResultLabel {
+	overflow-wrap: anywhere;
+}
+
+.InputfieldPageModalSelectPagination {
+	margin: 0;
+}
+
+.InputfieldPageModalSelectDialogLarge ul.uk-pagination {
+	margin-bottom: 0 !important;
+}
+
+body.AdminThemeUikitDefault .InputfieldPageModalSelectDialogLarge ul.uk-pagination > li > a {
+	border: 1px solid var(--pw-border-color) !important;
+	border-color: var(--pw-border-color) !important;
+	background: var(--pw-blocks-background) !important;
+	color: var(--pw-muted-color) !important;
+	border-radius: 0 !important;
+}
+
+body.AdminThemeUikitDefault .InputfieldPageModalSelectDialogLarge ul.uk-pagination > li.uk-active > a {
+	background: var(--pw-text-color) !important;
+	color: var(--pw-blocks-background) !important;
+}
+
+body.AdminThemeUikitDefault .InputfieldPageModalSelectDialogLarge ul.uk-pagination > li:not(.uk-active) > a:focus {
+	background: var(--pw-inputs-background) !important;
+	color: var(--pw-muted-color) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	body.AdminThemeUikitDefault .InputfieldPageModalSelectDialogLarge ul.uk-pagination > li:not(.uk-active) > a:hover {
+		background: var(--pw-inputs-background) !important;
+		color: var(--pw-muted-color) !important;
+	}
+}
+
+body.AdminThemeUikitDefault .InputfieldPageModalSelectDialogLarge ul.uk-pagination > li.uk-active + li > a {
+	border-left: none !important;
+}
+
+body.AdminThemeUikitDefault .InputfieldPageModalSelectDialogLarge .uk-pagination a {
+	display: block;
+}
+
+.InputfieldPageModalSelectResultsMeta,
+.InputfieldPageModalSelectSelectedMeta {
+	margin: 0 0 0.65rem;
+}
+
+.InputfieldPageModalSelectResultsFooter,
+.InputfieldPageModalSelectSelectedFooter {
+	margin-bottom: 0;
+	margin-top: 0.75rem;
+}
+
+.InputfieldPageModalSelectActions {
+	flex: 0 0 auto;
+	border-top: 1px solid #e5e5e5;
+	margin-top: 1rem;
+	padding-top: 1rem;
+	text-align: right;
+}

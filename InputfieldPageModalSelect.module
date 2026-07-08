@@ -1,0 +1,665 @@
+<?php namespace ProcessWire;
+
+/**
+ * Modal checkbox selector for multi-page reference fields.
+ */
+class InputfieldPageModalSelect extends Inputfield implements InputfieldHasArrayValue, InputfieldHasSortableValue {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => __('Page Modal Select', __FILE__),
+			'summary' => __('Select multiple pages from a searchable modal with checkboxes.', __FILE__),
+			'version' => 105,
+			'author' => 'Jonathan Lahijani',
+			'icon' => 'check-square-o',
+			'requires' => array('InputfieldPage', 'ProcessPageSearch'),
+		);
+	}
+
+	public function init() {
+		parent::init();
+		$this->set('parent_id', 0);
+		$this->set('template_id', 0);
+		$this->set('template_ids', array());
+		$this->set('labelFieldName', 'title');
+		$this->set('labelFieldFormat', '');
+		$this->set('findPagesSelector', '');
+		$this->set('findPagesSelect', '');
+		$this->set('searchFields', 'title');
+		$this->set('operator', '%=');
+		$this->set('allowUnpub', null);
+		$this->set('maxResults', 50);
+		$this->set('showSelectedList', 1);
+		$this->set('resultColumns', "title");
+	}
+
+	public function renderReady(?Inputfield $parent = null, $renderValueMode = false) {
+		$this->handleAjax();
+		$config = $this->wire()->config;
+		$baseUrl = $config->urls($this);
+		$info = self::getModuleInfo();
+		$version = (int) $info['version'];
+		$this->wire()->modules->get('MarkupAdminDataTable');
+		$config->scripts->add($baseUrl . 'InputfieldPageModalSelect.js?v=' . $version);
+		$config->styles->add($baseUrl . 'InputfieldPageModalSelect.css?v=' . $version);
+		return parent::renderReady($parent, $renderValueMode);
+	}
+
+	public function ___render() {
+		$sanitizer = $this->wire()->sanitizer;
+		$id = $sanitizer->entities($this->attr('id'));
+		$name = $sanitizer->entities($this->attr('name'));
+		$value = implode(',', $this->getSelectedIds());
+		$ajaxUrl = $sanitizer->entities($this->getAjaxUrl());
+		$searchFields = $sanitizer->entities($this->getSearchFieldsForUrl());
+		$operator = $sanitizer->entities($this->operator ?: '%=');
+		$columnDefs = $this->getColumnDefinitions();
+		$selectedPages = $this->getSelectedPageData(false);
+		$labels = array();
+		$paths = array();
+		foreach($selectedPages as $pageId => $data) $labels[$pageId] = $data['label'];
+		foreach($selectedPages as $pageId => $data) $paths[$pageId] = $data['path'];
+		$count = count($selectedPages);
+		$countText = $this->formatCount($count);
+		$buttonText = $count ? $this->_('Change selection') : $this->_('Select pages');
+		$labelJson = $sanitizer->entities(json_encode($labels, JSON_FORCE_OBJECT));
+		$pathJson = $sanitizer->entities(json_encode($paths, JSON_FORCE_OBJECT));
+		$columnFields = $sanitizer->entities(implode(',', array_map(function($column) {
+			return $column['name'];
+		}, $columnDefs)));
+		$editUrlTemplate = $sanitizer->entities($this->wire()->config->urls->admin . 'page/edit/?id={id}');
+
+		$out = "<div class='InputfieldPageModalSelect' data-input-id='$id' data-labels='$labelJson' data-paths='$pathJson' data-columns='{}' data-column-fields='$columnFields' data-edit-url-template='$editUrlTemplate'>";
+		$out .= "<input type='hidden' id='$id' name='{$name}[]' class='InputfieldPageModalSelectData' value='$value' ";
+		$out .= "data-url='$ajaxUrl' data-search='$searchFields' data-operator='$operator' />";
+		$out .= "<div class='InputfieldPageModalSelectSummary'>";
+		$out .= "<button type='button' class='InputfieldPageModalSelectOpen ui-button ui-widget ui-corner-all'>";
+		$out .= wireIconMarkup('search', 'fw') . ' ' . $sanitizer->entities($buttonText) . "</button>";
+		$out .= "<span class='InputfieldPageModalSelectCount'>" . $sanitizer->entities($countText) . "</span>";
+		$out .= "</div>";
+		if($this->showSelectedList !== '0' && $this->showSelectedList !== 0) {
+			$out .= "<ol class='InputfieldPageModalSelectSelected'>";
+			foreach($selectedPages as $pageId => $data) {
+				$out .= "<li data-page-id='" . (int) $pageId . "'>";
+				if($data['editUrl']) {
+					$out .= "<a href='" . $sanitizer->entities($data['editUrl']) . "'>" . $sanitizer->entities($data['label']) . "</a>";
+				} else {
+					$out .= $sanitizer->entities($data['label']);
+				}
+				$out .= "</li>";
+			}
+			$out .= "</ol>";
+		}
+		$out .= $this->renderModal($id, $columnDefs);
+		$out .= "</div>";
+
+		return $out;
+	}
+
+	protected function renderModal($id, array $columnDefs) {
+		$sanitizer = $this->wire()->sanitizer;
+		$id = $sanitizer->entities($id);
+		$title = $sanitizer->entities($this->label ?: $this->_('Select pages'));
+		$search = $sanitizer->entities($this->_('Search pages'));
+		$searchSelected = $sanitizer->entities($this->_('Search selected pages'));
+		$clearSearch = $sanitizer->entities($this->_('Clear'));
+		$close = $sanitizer->entities($this->_('Done'));
+		$placeholder = $sanitizer->entities($this->_('Search pages'));
+		$empty = $sanitizer->entities($this->_('Loading pages...'));
+		$selected = $sanitizer->entities($this->_('Selected pages'));
+		$results = $sanitizer->entities($this->_('Search'));
+		$sortHeading = $sanitizer->entities($this->_('Sort'));
+		$indexHeading = $sanitizer->entities($this->_('Index'));
+		$selectHeading = $sanitizer->entities($this->_('Select'));
+		$selectAllShown = $sanitizer->entities($this->_('Select all shown'));
+		$removeHeading = $sanitizer->entities($this->_('Remove'));
+		$selectedColumnHeadings = '';
+		$resultColumnHeadings = '';
+		foreach($columnDefs as $column) {
+			$label = $sanitizer->entities($column['label']);
+			$selectedColumnHeadings .= "<th data-column='" . $sanitizer->entities($column['name']) . "'>$label</th>";
+			$resultColumnHeadings .= "<th data-column='" . $sanitizer->entities($column['name']) . "'>$label</th>";
+		}
+
+		return "
+			<div class='InputfieldPageModalSelectDialog uk-padding-small' id='{$id}_dialog' title='$title' hidden>
+				<div class='InputfieldPageModalSelectBody'>
+					<ul class='InputfieldPageModalSelectTabs uk-tab' uk-tab>
+						<li><a href='#' class='InputfieldPageModalSelectSelectedTab'>$selected <span class='InputfieldPageModalSelectSelectedTabCount'></span></a></li>
+						<li><a href='#' class='InputfieldPageModalSelectSearchTab'>$results</a></li>
+					</ul>
+					<ul class='InputfieldPageModalSelectTabPanels uk-switcher uk-margin'>
+						<li>
+							<div class='InputfieldPageModalSelectSearch InputfieldPageModalSelectSelectedSearch'>
+								<div class='InputfieldPageModalSelectSearchHeader'>
+									<label for='{$id}_selected_query' class='InputfieldPageModalSelectVisuallyHidden'>$searchSelected</label>
+								</div>
+								<div class='InputfieldPageModalSelectSearchControls uk-grid-small uk-flex-middle' uk-grid>
+									<div class='uk-width-expand'>
+										<div class='InputfieldPageModalSelectSearchInputWrap uk-inline uk-width-1-1'>
+											<input type='search' id='{$id}_selected_query' class='InputfieldPageModalSelectSelectedQuery uk-input' placeholder='$searchSelected' autocomplete='off' />
+											<button type='button' class='InputfieldPageModalSelectInlineClear uk-form-icon uk-form-icon-flip' aria-label='$clearSearch'>" . wireIconMarkup('times-circle') . "</button>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class='InputfieldPageModalSelectSelectedBlock'>
+								<div class='InputfieldPageModalSelectSelectedHiddenNote'></div>
+								<div class='InputfieldPageModalSelectSelectedMeta InputfieldPageModalSelectSelectedMetaTop uk-grid-collapse uk-flex-middle' uk-grid>
+									<div class='uk-width-expand'>
+										<div class='InputfieldPageModalSelectSelectedStatus'>$empty</div>
+									</div>
+									<div class='uk-width-auto'>
+										<div class='InputfieldPageModalSelectSelectedPagination InputfieldPageModalSelectSelectedPaginationTop'></div>
+									</div>
+								</div>
+								<div class='InputfieldPageModalSelectModalSelectedWrap'>
+									<table class='InputfieldPageModalSelectModalSelected AdminDataTable AdminDataList uk-table uk-table-small uk-table-divider uk-table-hover uk-table-middle'>
+										<thead><tr><th>$sortHeading</th><th>$indexHeading</th>$selectedColumnHeadings<th><a href='#' class='InputfieldPageModalSelectRemoveAll'>$removeHeading</a></th></tr></thead>
+										<tbody></tbody>
+									</table>
+								</div>
+								<div class='InputfieldPageModalSelectSelectedMeta InputfieldPageModalSelectSelectedFooter uk-grid-collapse uk-flex-middle' uk-grid>
+									<div class='uk-width-expand'>
+										<div class='InputfieldPageModalSelectSelectedBottomStatus'></div>
+									</div>
+									<div class='uk-width-auto'>
+										<div class='InputfieldPageModalSelectSelectedPagination InputfieldPageModalSelectSelectedPaginationBottom'></div>
+									</div>
+								</div>
+							</div>
+						</li>
+						<li>
+							<div class='InputfieldPageModalSelectSearch InputfieldPageModalSelectResultsSearch'>
+								<div class='InputfieldPageModalSelectSearchHeader'>
+									<label for='{$id}_query' class='InputfieldPageModalSelectVisuallyHidden'>$search</label>
+								</div>
+								<div class='InputfieldPageModalSelectSearchControls uk-grid-small uk-flex-middle' uk-grid>
+									<div class='uk-width-expand'>
+										<div class='InputfieldPageModalSelectSearchInputWrap uk-inline uk-width-1-1'>
+											<input type='search' id='{$id}_query' class='InputfieldPageModalSelectQuery uk-input' placeholder='$placeholder' autocomplete='off' />
+											<button type='button' class='InputfieldPageModalSelectInlineClear uk-form-icon uk-form-icon-flip' aria-label='$clearSearch'>" . wireIconMarkup('times-circle') . "</button>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class='InputfieldPageModalSelectResultsMeta InputfieldPageModalSelectResultsMetaTop uk-grid-collapse uk-flex-middle' uk-grid>
+								<div class='uk-width-expand'>
+									<div class='InputfieldPageModalSelectStatus'>$empty</div>
+								</div>
+								<div class='uk-width-auto'>
+									<div class='InputfieldPageModalSelectPagination InputfieldPageModalSelectPaginationTop'></div>
+								</div>
+							</div>
+							<div class='InputfieldPageModalSelectResultsWrap'>
+								<table class='InputfieldPageModalSelectResults AdminDataTable AdminDataList uk-table uk-table-small uk-table-divider uk-table-hover uk-table-middle'>
+									<thead><tr><th><a href='#' class='InputfieldPageModalSelectToggleShown uk-disabled' aria-disabled='true' aria-label='$selectAllShown' title='$selectAllShown'>$selectHeading</a></th>$resultColumnHeadings</tr></thead>
+									<tbody></tbody>
+								</table>
+							</div>
+							<div class='InputfieldPageModalSelectResultsMeta InputfieldPageModalSelectResultsFooter uk-grid-collapse uk-flex-middle' uk-grid>
+								<div class='uk-width-expand'>
+									<div class='InputfieldPageModalSelectBottomStatus'></div>
+								</div>
+								<div class='uk-width-auto'>
+									<div class='InputfieldPageModalSelectPagination InputfieldPageModalSelectPaginationBottom'></div>
+								</div>
+							</div>
+						</li>
+					</ul>
+				</div>
+				<div class='InputfieldPageModalSelectActions'>
+					<button type='button' class='InputfieldPageModalSelectClose ui-button ui-widget ui-corner-all'>$close</button>
+				</div>
+			</div>";
+	}
+
+	protected function getSelectedIds() {
+		$value = $this->val();
+		if($value instanceof PageArray) $value = $value->explode('id');
+		if($value instanceof Page) $value = array($value->id);
+		if(is_string($value)) $value = preg_split('/[,|]/', $value);
+		if(!is_array($value)) $value = array();
+		$ids = array();
+		foreach($value as $id) {
+			$id = (int) $id;
+			if($id > 0 && !in_array($id, $ids)) $ids[] = $id;
+		}
+		return $ids;
+	}
+
+	protected function getSelectedLabels() {
+		$labels = array();
+		foreach($this->getSelectedPageData(false) as $pageId => $data) $labels[$pageId] = $data['label'];
+		return $labels;
+	}
+
+	protected function getSelectedPageData($includeColumns = true) {
+		$labels = array();
+		$ids = $this->getSelectedIds();
+		$columnDefs = $this->getColumnDefinitions();
+		if(!count($ids)) return $labels;
+		foreach($this->wire()->pages->getById($ids) as $page) {
+			if(!$page->id) continue;
+			$labels[$page->id] = array(
+				'label' => $this->getPageLabel($page),
+				'path' => $page->path,
+				'editUrl' => $page->editable() ? $page->editUrl : '',
+			);
+			if($includeColumns) $labels[$page->id]['columns'] = $this->getPageColumns($page, $columnDefs);
+		}
+		return $labels;
+	}
+
+	protected function getColumnDefinitions() {
+		$sanitizer = $this->wire()->sanitizer;
+		$fields = $this->wire()->fields;
+		$lines = preg_split('/\r\n|\r|\n/', (string) $this->resultColumns);
+		$columns = array();
+		$seen = array();
+
+		foreach($lines as $line) {
+			$name = trim($line);
+			if(!strlen($name)) continue;
+			if($name === '.') $name = 'name';
+			$name = $sanitizer->fieldName($name);
+			if(!strlen($name) || isset($seen[$name])) continue;
+
+			$type = 'text';
+			$label = ucfirst($name);
+			if(in_array($name, array('title', 'name', 'path', 'id'))) {
+				$label = $name === 'id' ? 'ID' : ucfirst($name);
+				if($name === 'title') $type = 'title';
+			} else {
+				$field = $fields->get($name);
+				if(!$field || !$field->id) continue;
+				$label = $field->label ?: $field->name;
+				if($field->type instanceof FieldtypeImage) $type = 'image';
+			}
+
+			$columns[] = array(
+				'name' => $name,
+				'label' => $label,
+				'type' => $type,
+			);
+			$seen[$name] = true;
+		}
+
+		if(!count($columns)) {
+			$columns[] = array(
+				'name' => 'title',
+				'label' => $this->_('Title'),
+				'type' => 'title',
+			);
+		}
+
+		return $columns;
+	}
+
+	protected function getPageColumns(Page $page, array $columnDefs) {
+		$out = array();
+		foreach($columnDefs as $column) {
+			if($column['type'] === 'title') {
+				$out[$column['name']] = array(
+					'type' => 'title',
+					'text' => $this->getPageLabel($page),
+					'path' => $page->path,
+				);
+			} else if($column['type'] === 'image') {
+				$out[$column['name']] = $this->getImageColumnValue($page, $column['name']);
+			} else {
+				$out[$column['name']] = array(
+					'type' => 'text',
+					'text' => $this->getTextColumnValue($page, $column['name']),
+				);
+			}
+		}
+		return $out;
+	}
+
+	protected function getTextColumnValue(Page $page, $name) {
+		if($name === 'id') return (string) $page->id;
+		if($name === 'name') return $page->name;
+		if($name === 'path') return $page->path;
+		$value = $page->getText($name, true, false);
+		return trim(strip_tags((string) $value));
+	}
+
+	protected function getImageColumnValue(Page $page, $name) {
+		$value = $page->get($name);
+		if($value instanceof Pageimages) {
+			if(!$value->count()) return array('type' => 'image', 'image' => null);
+			$image = $value->first();
+		} else if($value instanceof Pageimage) {
+			$image = $value;
+		} else {
+			return array('type' => 'image', 'image' => null);
+		}
+
+		if(!$image) return array('type' => 'image', 'image' => null);
+
+		try {
+			//$thumb = $image->size(100, 100);
+			$thumb = $image->width(100);
+		} catch(\Exception $e) {
+			$thumb = $image;
+		}
+
+		return array(
+			'type' => 'image',
+			'image' => array(
+				'url' => $thumb->url,
+				'width' => (int) $thumb->width,
+				'height' => (int) $thumb->height,
+				'alt' => trim((string) $image->description),
+			),
+		);
+	}
+
+	protected function getPageLabel(Page $page) {
+		$label = '';
+		if($this->labelFieldFormat) {
+			$label = $page->getText($this->labelFieldFormat, true, false);
+		} else {
+			$field = $this->labelFieldName ?: 'title';
+			if($field === '.') $field = 'name';
+			$label = $page->get($field);
+		}
+		$label = trim(strip_tags((string) $label));
+		return strlen($label) ? $label : $page->get('title|name');
+	}
+
+	protected function formatCount($count) {
+		return sprintf($this->_n('%d item selected', '%d items selected', $count), $count);
+	}
+
+	protected function getSearchFieldsForUrl() {
+		$sanitizer = $this->wire()->sanitizer;
+		$fields = str_replace(array(',', '|'), ' ', $this->searchFields ?: 'title');
+		$out = array();
+		foreach(explode(' ', $fields) as $field) {
+			$field = trim($field);
+			if(!strlen($field)) continue;
+			if(strpos($field, '.')) {
+				list($field, $subfield) = explode('.', $field, 2);
+				$field = $sanitizer->fieldName($field);
+				$subfield = $sanitizer->fieldName($subfield);
+				if($field && $subfield) $out[] = "$field-$subfield";
+			} else {
+				$field = $sanitizer->fieldName($field);
+				if($field) $out[] = $field;
+			}
+		}
+		return count($out) ? implode(',', $out) : 'title';
+	}
+
+	protected function getSearchFieldsForSelector() {
+		$fields = str_replace(array(',', '|'), ' ', $this->searchFields ?: 'title');
+		$out = array();
+		foreach(explode(' ', $fields) as $field) {
+			$field = trim($field);
+			if(!strlen($field)) continue;
+			$field = $this->wire()->sanitizer->fieldSubfield($field, 2);
+			if($field) $out[] = $field;
+		}
+		return count($out) ? implode('|', $out) : 'title';
+	}
+
+	protected function getBaseSelector() {
+		$selector = trim((string) $this->findPagesSelector);
+		if(!strlen($selector)) $selector = trim((string) $this->findPagesSelect);
+
+		if($this->parent_id) {
+			if(strlen($selector)) {
+				$selector .= ', has_parent=' . (int) $this->parent_id;
+			} else {
+				$selector = 'parent_id=' . (int) $this->parent_id;
+			}
+		}
+
+		$templateIds = $this->template_ids;
+		if(is_array($templateIds) && count($templateIds)) {
+			$selector .= ', templates_id=' . implode('|', array_map('intval', $templateIds));
+		} else if($this->template_id) {
+			$selector .= ', templates_id=' . (int) $this->template_id;
+		}
+
+		$allowUnpub = $this->getSetting('allowUnpub');
+		if(!is_null($allowUnpub) && !$allowUnpub) $selector .= ', status<' . Page::statusUnpublished;
+		$selector = trim($selector, ', ');
+		return strlen($selector) ? $selector : 'id>0';
+	}
+
+	protected function getAjaxUrl() {
+		$pageId = $this->hasPage ? (int) $this->hasPage->id : (int) $this->wire()->input->get('id');
+		$fieldName = $this->getAjaxFieldName();
+		return $this->wire()->config->urls->admin . 'page/edit/?id=' . $pageId . '&InputfieldPageModalSelectAjax=' . rawurlencode($fieldName);
+	}
+
+	protected function getAjaxFieldName() {
+		if($this->hasField && $this->hasField->name) return $this->hasField->name;
+
+		$name = (string) $this->attr('name');
+		$name = preg_replace('/^_repeater\d+_/', '', $name);
+		$name = preg_replace('/\[\]$/', '', $name);
+		return $this->wire()->sanitizer->fieldName($name);
+	}
+
+	protected function handleAjax() {
+		$input = $this->wire()->input;
+		$fieldName = $this->wire()->sanitizer->fieldName($input->get('InputfieldPageModalSelectAjax'));
+		if(!$fieldName || $fieldName !== $this->getAjaxFieldName()) return;
+
+		$page = $this->hasPage ?: $this->wire()->pages->get((int) $input->get('id'));
+		if(!$page || !$page->id || !$this->isAjaxPageEditable($page, $fieldName)) return;
+
+		if($input->get('action') === 'selected') {
+			$this->renderSelectedAjax();
+		}
+
+		$selector = preg_replace('/(^|,\s*)limit=\d+\s*/', '$1', $this->getBaseSelector());
+		$selector = trim($selector, ', ');
+		$q = trim((string) $input->get('q'));
+		if(strlen($q)) {
+			$selector .= ', ' . $this->getSearchFieldsForSelector() . ($this->operator ?: '%=') . $this->wire()->sanitizer->selectorValue($q);
+		}
+		if(stripos($selector, 'include=') === false && stripos($selector, 'status') === false && $this->wire()->user->isSuperuser()) {
+			$selector .= ', include=all, status<' . Page::statusTrash;
+		}
+
+		$start = max(0, (int) $input->get('start'));
+		$limit = max(1, (int) $this->maxResults);
+		$selector .= ', start=' . $start . ', limit=' . $limit;
+
+		$matches = $this->wire()->pages->find($selector);
+		$columnDefs = $this->getColumnDefinitions();
+		$out = array(
+			'total' => $matches->getTotal(),
+			'limit' => $matches->getLimit(),
+			'start' => $matches->getStart(),
+			'columns' => $columnDefs,
+			'matches' => array(),
+		);
+
+		foreach($matches as $match) {
+			$out['matches'][] = array(
+				'id' => $match->id,
+				'name' => $match->name,
+				'title' => $match->title,
+				'label' => $this->getPageLabel($match),
+				'path' => $match->path,
+				'columns' => $this->getPageColumns($match, $columnDefs),
+			);
+		}
+
+		header('Content-Type: application/json');
+		echo json_encode($out);
+		exit;
+	}
+
+	protected function isAjaxPageEditable(Page $page, $fieldName) {
+		if($page->editable($fieldName)) return true;
+
+		if($page instanceof RepeaterPage && $page->hasField($fieldName)) {
+			$forPage = $page->getForPageRoot();
+			$forField = $page->getForFieldRoot();
+			if($forPage && $forPage->id && $forField && $forField->id && $forPage->editable($forField->name)) return true;
+		}
+
+		return false;
+	}
+
+	protected function renderSelectedAjax() {
+		$ids = array();
+		$seen = array();
+		$rawIds = explode(',', (string) $this->wire()->input->get('ids'));
+		$columnDefs = $this->getColumnDefinitions();
+		$matches = array();
+		$q = strtolower(trim((string) $this->wire()->input->get('q')));
+		$start = max(0, (int) $this->wire()->input->get('start'));
+		$limit = max(1, (int) $this->maxResults);
+		$total = 0;
+
+		foreach($rawIds as $id) {
+			$id = (int) $id;
+			if($id > 0 && empty($seen[$id])) {
+				$ids[] = $id;
+				$seen[$id] = true;
+			}
+		}
+
+		if(count($ids)) {
+			$pageIds = strlen($q) ? $ids : array_slice($ids, $start, $limit);
+			$pagesById = array();
+			foreach($this->wire()->pages->getById($pageIds) as $page) {
+				if(!$page->id) continue;
+				$pagesById[$page->id] = $page;
+			}
+
+			if(!strlen($q)) $total = count($ids);
+
+			foreach($pageIds as $id) {
+				if(empty($pagesById[$id])) continue;
+				$page = $pagesById[$id];
+				$match = array(
+					'id' => $page->id,
+					'name' => $page->name,
+					'title' => $page->title,
+					'label' => $this->getPageLabel($page),
+					'path' => $page->path,
+					'columns' => $this->getPageColumns($page, $columnDefs),
+				);
+
+				if(strlen($q)) {
+					$haystack = strtolower($match['label'] . ' ' . $match['path'] . ' ' . json_encode($match['columns']));
+					if(strpos($haystack, $q) === false) continue;
+					$total++;
+					if($total <= $start || count($matches) >= $limit) continue;
+				}
+
+				$matches[] = $match;
+			}
+		}
+
+		header('Content-Type: application/json');
+		echo json_encode(array(
+			'total' => $total,
+			'limit' => $limit,
+			'start' => $start,
+			'columns' => $columnDefs,
+			'matches' => $matches,
+		));
+		exit;
+	}
+
+	public function ___processInput(WireInputData $input) {
+		parent::___processInput($input);
+		$value = $this->val();
+		if(is_array($value)) $value = reset($value);
+		$value = is_string($value) ? trim($value) : '';
+		$ids = strlen($value) ? explode(',', $value) : array();
+		foreach($ids as $key => $id) {
+			$id = (int) $id;
+			if($id > 0) {
+				$ids[$key] = $id;
+			} else {
+				unset($ids[$key]);
+			}
+		}
+		$this->val(array_values(array_unique($ids)));
+		return $this;
+	}
+
+	public function ___renderValue() {
+		$out = array();
+		foreach($this->getSelectedLabels() as $label) $out[] = $this->wire()->sanitizer->entities($label);
+		return count($out) ? '<ul><li>' . implode('</li><li>', $out) . '</li></ul>' : '';
+	}
+
+	public function ___getConfigInputfields() {
+		$inputfields = parent::___getConfigInputfields();
+		$modules = $this->wire()->modules;
+
+		$f = $modules->get('InputfieldText');
+		$f->attr('name', 'searchFields');
+		$f->label = $this->_('Fields to search');
+		$f->description = $this->_('Enter field names to search, separated by spaces.');
+		$f->attr('value', $this->searchFields);
+		$inputfields->add($f);
+
+		$f = $modules->get('InputfieldSelect');
+		$f->attr('name', 'operator');
+		$f->label = $this->_('Search operator');
+		foreach(array('%=' => '%=', '*=' => '*=', '~=' => '~=', '^=' => '^=', '=' => '=') as $operator) {
+			$f->addOption($operator, $operator);
+		}
+		$f->attr('value', $this->operator ?: '%=');
+		$inputfields->add($f);
+
+		$f = $modules->get('InputfieldInteger');
+		$f->attr('name', 'maxResults');
+		$f->label = $this->_('Results per page');
+		$f->description = $this->_('Pagination is used when there are more matching pages than this number.');
+		$f->attr('value', max(1, (int) $this->maxResults));
+		$f->collapsed = Inputfield::collapsedYes;
+		$inputfields->add($f);
+
+		$f = $modules->get('InputfieldCheckbox');
+		$f->attr('name', 'showSelectedList');
+		$f->label = $this->_('Show selected pages below the field');
+		$f->description = $this->_('When checked, selected pages are listed under the selection button. The selected count is always shown.');
+		$f->checkedValue = 1;
+		$f->uncheckedValue = 0;
+		$f->checked($this->showSelectedList !== '0' && $this->showSelectedList !== 0);
+		$inputfields->add($f);
+
+		$f = $modules->get('InputfieldTextarea');
+		$f->attr('name', 'resultColumns');
+		$f->label = $this->_('Columns to show');
+		$f->description = $this->_('Enter one field name per line. Use title to show the linked title with the page path underneath. Image fields show the first image as a thumbnail when available.');
+		$f->attr('value', $this->resultColumns ?: "title");
+		$f->attr('rows', 5);
+		$inputfields->add($f);
+
+		return $inputfields;
+	}
+
+	public function ___install() {
+		$modules = $this->wire()->modules;
+		$data = $modules->getConfig('InputfieldPage');
+		if(empty($data['inputfieldClasses']) || !is_array($data['inputfieldClasses'])) $data['inputfieldClasses'] = array();
+		if(!in_array($this->className(), $data['inputfieldClasses'])) $data['inputfieldClasses'][] = $this->className();
+		$modules->saveConfig('InputfieldPage', $data);
+	}
+
+	public function ___uninstall() {
+		$modules = $this->wire()->modules;
+		$data = $modules->getConfig('InputfieldPage');
+		if(!empty($data['inputfieldClasses']) && is_array($data['inputfieldClasses'])) {
+			foreach($data['inputfieldClasses'] as $key => $class) {
+				if($class === $this->className()) unset($data['inputfieldClasses'][$key]);
+			}
+			$modules->saveConfig('InputfieldPage', $data);
+		}
+	}
+}
