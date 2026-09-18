@@ -9,7 +9,7 @@ class InputfieldPageModalSelect extends Inputfield implements InputfieldHasArray
 		return array(
 			'title' => __('Page Modal Select', __FILE__),
 			'summary' => __('Select multiple pages from a searchable modal with checkboxes.', __FILE__),
-			'version' => 105,
+			'version' => 106,
 			'author' => 'Jonathan Lahijani',
 			'icon' => 'check-square-o',
 			'requires' => array('InputfieldPage', 'ProcessPageSearch'),
@@ -573,21 +573,25 @@ class InputfieldPageModalSelect extends Inputfield implements InputfieldHasArray
 	}
 
 	public function ___processInput(WireInputData $input) {
-		parent::___processInput($input);
-		$value = $this->val();
-		if(is_array($value)) $value = reset($value);
-		$value = is_string($value) ? trim($value) : '';
-		$ids = strlen($value) ? explode(',', $value) : array();
-		foreach($ids as $key => $id) {
-			$id = (int) $id;
-			if($id > 0) {
-				$ids[$key] = $id;
-			} else {
-				unset($ids[$key]);
+		$name = $this->attr('name');
+		$value = $input[$name];
+		if($value !== null && !is_array($value)) return parent::___processInput($input);
+
+		// Decode the hidden input before core processing converts numeric strings to
+		// integers and compares values for change tracking (including repeater items).
+		$ids = array();
+		foreach((array) $value as $item) {
+			if(!is_string($item) && !is_int($item)) continue;
+			foreach(explode(',', (string) $item) as $id) {
+				$id = (int) $id;
+				if($id > 0) $ids[] = $id;
 			}
 		}
-		$this->val(array_values(array_unique($ids)));
-		return $this;
+
+		// Keep the shared POST data intact for other inputfields and repeater items.
+		$data = array($name => array_values(array_unique($ids)));
+		$normalizedInput = $this->wire(new WireInputData($data));
+		return parent::___processInput($normalizedInput);
 	}
 
 	public function ___renderValue() {
